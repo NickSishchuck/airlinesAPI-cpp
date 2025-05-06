@@ -1,0 +1,1 @@
+https://mariadb.com/kb/en/install-mariadb-connector-cpp/
