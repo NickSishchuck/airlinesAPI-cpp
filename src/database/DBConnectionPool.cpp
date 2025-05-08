@@ -1,5 +1,6 @@
 #include "../../include/database/DBConnectionPool.h"
 #include "../../include/utils/Logger.h"
+#include <iostream>
 #include <sstream>
 
 // DBConnection implementation
@@ -200,6 +201,7 @@ bool DBConnectionPool::checkHealth() {
 std::shared_ptr<sql::Connection> DBConnectionPool::createConnection() {
     try {
         // Build connection properties
+        // Build connection properties
         sql::SQLString url("jdbc:mariadb://" + host + ":" + std::to_string(port) + "/" + database);
         sql::Properties properties({
             {"user", user},
@@ -207,8 +209,12 @@ std::shared_ptr<sql::Connection> DBConnectionPool::createConnection() {
             {"autoReconnect", "true"},
             {"useUnicode", "true"},
             {"characterEncoding", "utf8mb4"},
-            {"connectTimeout", "5000"}
+            {"connectTimeout", "5000"},  // 5 second timeout
+            {"socketTimeout", "5000"},   // 5 second timeout
+            {"loginTimeout", "5000"}     // 5 second timeout
         });
+
+        std::cout << "Attempting to connect to DB with URL: " << url.c_str() << std::endl;
 
         // Create connection
         sql::Connection* rawConn = driver->connect(url, properties);
