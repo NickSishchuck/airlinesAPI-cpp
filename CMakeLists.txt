@@ -8,8 +8,8 @@ find_package(Threads REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(Boost REQUIRED)
 
-# Crow is header-only, add include path
-include_directories(${CMAKE_SOURCE_DIR}/lib/crow/include)
+# Crow is installed system-wide via AUR
+# No need for custom include path, it should be in the system include directories
 
 # MariaDB Connector/C++ - Using direct path approach since find_package may not work
 set(MARIADB_CONNECTOR_INCLUDE_DIR "/usr/include/mariadb" "/usr/include/mariadb/conncpp")
@@ -32,5 +32,5 @@ target_link_libraries(airline_api
     ${Boost_LIBRARIES}
 )
 
-# Copy configuration files to build directory if needed
-# file(COPY ${CMAKE_SOURCE_DIR}/config.json DESTINATION ${CMAKE_BINARY_DIR})
+# Copy configuration files to build directory
+file(COPY ${CMAKE_SOURCE_DIR}/config.json DESTINATION ${CMAKE_BINARY_DIR})

@@ -1,0 +1,15 @@
+{
+  "port": 3000,
+  "database": {
+    "host": "localhost",
+    "user": "airline_user",
+    "password": "airline_password",
+    "name": "airline_transportation",
+    "port": 3306,
+    "poolSize": 10
+  },
+  "jwt": {
+    "secret": "simpleSecretKey123",
+    "expiresIn": 2592000
+  }
+}
