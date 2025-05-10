@@ -24,38 +24,41 @@ int main() {
             return 1;
         }
         std::cout << "Configuration loaded successfully" << std::endl;
+    std::cout << "Initializing database connection pool..." << std::endl;
+    auto& dbPool = DBConnectionPool::getInstance();
 
-        // Initialize database connection pool
-        std::cout << "Initializing database connection pool..." << std::endl;
-        auto& dbPool = DBConnectionPool::getInstance();
+    std::cout << "About to connect to database at " << config.getDbHost() << ":" << config.getDbPort() << std::endl;
+    std::cout << "Using database: " << config.getDbName() << ", User: " << config.getDbUser() << std::endl;
 
-        std::cout << "About to connect to database at " << config.getDbHost() << ":" << config.getDbPort() << std::endl;
+    // Try to initialize the database with a timeout and fallback
+    bool dbConnected = false;
+    try {
+        std::cout << "Attempting database connection..." << std::endl;
+        // Lower pool size to 1 for initial testing to avoid multiple connection attempts
+        dbConnected = dbPool.initialize(
+            config.getDbHost(),
+            config.getDbUser(),
+            config.getDbPassword(),
+            config.getDbName(),
+            config.getDbPort(),
+            1); // Start with just 1 connection for faster startup
 
-        // Use a timeout for the database connection
-        bool dbConnected = false;
-        try {
-            dbConnected = dbPool.initialize(
-                config.getDbHost(),
-                config.getDbUser(),
-                config.getDbPassword(),
-                config.getDbName(),
-                config.getDbPort(),
-                config.getDbPoolSize());
+        std::cout << "Database connection attempt completed with result: " 
+                  << (dbConnected ? "SUCCESS" : "FAILURE") << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "Database connection failed with exception: " << e.what() << std::endl;
+        Logger::error("Database connection failed with exception: " + std::string(e.what()));
+    }
 
-            std::cout << "Database connection attempt completed" << std::endl;
-        } catch (const std::exception& e) {
-            std::cout << "Database connection failed with exception: " << e.what() << std::endl;
-            Logger::error("Database connection failed with exception: " + std::string(e.what()));
-        }
-
-        if (!dbConnected) {
-            std::cout << "Failed to initialize database connection pool. Exiting." << std::endl;
-            Logger::error("Failed to initialize database connection pool. Exiting.");
-            return 1;
-        }
-
+    // Continue with reduced functionality if database connection fails
+    if (!dbConnected) {
+        std::cout << "NOTICE: Starting with limited functionality due to database connection failure" << std::endl;
+        Logger::warn("Starting with limited functionality due to database connection failure");
+        // You could still continue with non-DB endpoints
+    } else {
         std::cout << "Database connection pool initialized successfully." << std::endl;
         Logger::info("Database connection pool initialized successfully.");
+    }
 
         // Create and configure Crow application
         std::cout << "Creating Crow application..." << std::endl;

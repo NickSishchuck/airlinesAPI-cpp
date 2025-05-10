@@ -228,6 +228,8 @@ std::shared_ptr<sql::Connection> DBConnectionPool::createConnection() {
     }
 }
 
+
+
 void DBConnectionPool::cleanup() {
     std::lock_guard<std::mutex> lock(mutex);
 
