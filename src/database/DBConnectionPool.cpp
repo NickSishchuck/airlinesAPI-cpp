@@ -185,15 +185,111 @@ std::shared_ptr<DBConnection> DBConnectionPool::getConnection() {
     }
 }
 
+// Completely rewritten checkHealth method for src/database/DBConnectionPool.cpp
 bool DBConnectionPool::checkHealth() {
+    std::shared_ptr<DBConnection> conn = nullptr;
+    
     try {
-        auto conn = getConnection();
-        std::unique_ptr<sql::ResultSet> res = conn->executeQuery("SELECT 1");
-        conn->inUse = false;  // Release the connection
-        return res->next() && res->getInt(1) == 1;
+        // First, check if we're initialized
+        if (!initialized) {
+            Logger::error("Database health check failed: Connection pool not initialized");
+            return false;
+        }
+        
+        // Step 1: Get a connection (with locking to ensure thread safety)
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            
+            // Find an available connection or create a new one
+            for (auto& c : connections) {
+                if (!c->inUse) {
+                    c->inUse = true;
+                    conn = c;
+                    break;
+                }
+            }
+            
+            if (!conn) {
+                // Create a new connection if all are in use
+                auto newConn = createConnection();
+                if (newConn) {
+                    conn = std::make_shared<DBConnection>(newConn);
+                    conn->inUse = true;
+                    connections.push_back(conn);
+                }
+            }
+        }
+        
+        if (!conn) {
+            Logger::error("Database health check failed: Unable to get connection");
+            return false;
+        }
+        
+        // Step 2: Perform a simple test query
+        try {
+            std::cout << "Health check: Executing test query..." << std::endl;
+            
+            // Create statement directly instead of using helper method
+            std::unique_ptr<sql::Statement> stmt(conn->getConnection()->createStatement());
+            if (!stmt) {
+                std::cout << "Health check: Failed to create statement" << std::endl;
+                throw std::runtime_error("Failed to create statement");
+            }
+            
+            // Execute query and get result set
+            std::unique_ptr<sql::ResultSet> res(stmt->executeQuery("SELECT 1 AS test_value"));
+            if (!res) {
+                std::cout << "Health check: Failed to get result set" << std::endl;
+                throw std::runtime_error("Failed to get result set");
+            }
+            
+            // Check the result immediately
+            bool hasRow = res->next();
+            if (!hasRow) {
+                std::cout << "Health check: Result set has no rows" << std::endl;
+                throw std::runtime_error("Result set has no rows");
+            }
+            
+            int value = res->getInt("test_value");
+            std::cout << "Health check: Got value: " << value << std::endl;
+            
+            // Close the result set explicitly
+            res.reset();
+            
+            // Close the statement explicitly
+            stmt.reset();
+            
+            // Mark connection as not in use
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                conn->inUse = false;
+            }
+            
+            return (value == 1);
+            
+        } catch (const sql::SQLException& e) {
+            std::cout << "Health check: SQL exception: " << e.what() << std::endl;
+            Logger::error("Database health check SQL error: " + std::string(e.what()));
+            
+            // Make sure to release the connection even if there's an error
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                if (conn) conn->inUse = false;
+            }
+            
+            return false;
+        }
     }
     catch (const std::exception& e) {
+        std::cout << "Health check: General exception: " << e.what() << std::endl;
         Logger::error("Database health check failed: " + std::string(e.what()));
+        
+        // Make sure to release the connection even if there's an error
+        if (conn) {
+            std::lock_guard<std::mutex> lock(mutex);
+            conn->inUse = false;
+        }
+        
         return false;
     }
 }
