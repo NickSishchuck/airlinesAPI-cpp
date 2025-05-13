@@ -1,4 +1,3 @@
-
 #include "../../include/config/Config.h"
 #include "../../include/utils/Logger.h"
 #include <fstream>
@@ -100,6 +99,28 @@ bool Config::load(const std::string& filename) {
             LOG_WARNING("Config does not contain 'database' section");
         }
 
+        // Load JWT configuration
+        if (config.contains("jwt")) {
+            auto& jwt = config["jwt"];
+            LOG_DEBUG("JWT section: " + jwt.dump(2));
+
+            if (jwt.contains("secret")) {
+                jwtSecret = jwt["secret"].get<std::string>();
+                LOG_DEBUG("Loaded jwtSecret");
+            } else {
+                LOG_WARNING("JWT does not contain 'secret'");
+            }
+
+            if (jwt.contains("expiresIn")) {
+                jwtExpiresIn = jwt["expiresIn"].get<int>();
+                LOG_DEBUG("Loaded jwtExpiresIn: " + std::to_string(jwtExpiresIn));
+            } else {
+                LOG_WARNING("JWT does not contain 'expiresIn'");
+            }
+        } else {
+            LOG_WARNING("Config does not contain 'jwt' section");
+        }
+
         // Print default values vs loaded values
         LOG_INFO("Current configuration after loading:");
         LOG_INFO("port: " + std::to_string(port));
@@ -109,6 +130,8 @@ bool Config::load(const std::string& filename) {
         LOG_INFO("dbName: " + dbName);
         LOG_INFO("dbPort: " + std::to_string(dbPort));
         LOG_INFO("dbPoolSize: " + std::to_string(dbPoolSize));
+        (jwtSecret.empty() ? LOG_INFO("jwtSecret: Not set") : LOG_INFO("jwtSecret: Set"));
+        LOG_INFO("jwtExpiresIn: " + std::to_string(jwtExpiresIn));
 
         LOG_INFO("Configuration loaded successfully from " + filename);
         return true;
