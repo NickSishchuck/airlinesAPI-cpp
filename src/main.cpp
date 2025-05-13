@@ -10,87 +10,94 @@ int main() {
     try {
         // Print immediate console output to help debug
         std::cout << "Starting application..." << std::endl;
+        Logger* logger = Logger::getInstance();
+
+        logger->init();
+
+        // Now we can use the LOG_* macros or the Logger::* methods
+        LOG_INFO("Application starting");
 
         // Load configuration
-        std::cout << "Loading configuration..." << std::endl;
+        LOG_INFO("Loading configuration...");
         Config& config = Config::getInstance();
         if (!config.load("config.json")) {
-            Logger::error("Failed to load configuration. Exiting.");
+            LOG_ERROR("Failed to load configuration. Exiting.");
             return 1;
         }
-        std::cout << "Configuration loaded successfully" << std::endl;
-    std::cout << "Initializing database connection pool..." << std::endl;
-    auto& dbPool = DBConnectionPool::getInstance();
+        LOG_INFO("Configuration loaded successfully");
 
-    std::cout << "About to connect to database at " << config.getDbHost() << ":" << config.getDbPort() << std::endl;
-    std::cout << "Using database: " << config.getDbName() << ", User: " << config.getDbUser() << std::endl;
+        LOG_INFO("Initializing database connection pool...");
+        auto& dbPool = DBConnectionPool::getInstance();
 
-    // Try to initialize the database with a timeout and fallback
-    bool dbConnected = false;
-    try {
-        std::cout << "Attempting database connection..." << std::endl;
-        // Lower pool size to 1 for initial testing to avoid multiple connection attempts
-        dbConnected = dbPool.initialize(
-            config.getDbHost(),
-            config.getDbUser(),
-            config.getDbPassword(),
-            config.getDbName(),
-            config.getDbPort(),
-            1); // Start with just 1 connection for faster startup
+        LOG_DEBUG("About to connect to database at " + config.getDbHost() + ":" + std::to_string(config.getDbPort()));
+        LOG_DEBUG("Using database: " + config.getDbName() + ", User: " + config.getDbUser());
 
-        std::cout << "Database connection attempt completed with result: "
-                  << (dbConnected ? "SUCCESS" : "FAILURE") << std::endl;
-    } catch (const std::exception& e) {
-        std::cout << "Database connection failed with exception: " << e.what() << std::endl;
-    }
+        // Try to initialize the database with a timeout and fallback
+        bool dbConnected = false;
+        try {
+            LOG_INFO("Attempting database connection...");
+            // Lower pool size to 1 for initial testing to avoid multiple connection attempts
+            dbConnected = dbPool.initialize(
+                config.getDbHost(),
+                config.getDbUser(),
+                config.getDbPassword(),
+                config.getDbName(),
+                config.getDbPort(),
+                1); // Start with just 1 connection for faster startup
 
-    // Continue with reduced functionality if database connection fails
-    if (!dbConnected) {
-        std::cout << "NOTICE: Starting with limited functionality due to database connection failure" << std::endl;
-        // You could still continue with non-DB endpoints
-    } else {
-        std::cout << "Database connection pool initialized successfully." << std::endl;
-    }
+            LOG_INFO("Database connection attempt completed with result: " +
+                    std::string(dbConnected ? "SUCCESS" : "FAILURE"));
+        } catch (const std::exception& e) {
+            LOG_ERROR("Database connection failed with exception: " + std::string(e.what()));
+        }
+
+        // Continue with reduced functionality if database connection fails
+        if (!dbConnected) {
+            LOG_WARNING("Starting with limited functionality due to database connection failure");
+            // You could still continue with non-DB endpoints
+        } else {
+            LOG_INFO("Database connection pool initialized successfully.");
+        }
 
         // Create and configure Crow application
-        std::cout << "Creating Crow application..." << std::endl;
+        LOG_INFO("Creating Crow application...");
         crow::SimpleApp app;
 
         // Define routes
-        std::cout << "Defining routes..." << std::endl;
+        LOG_INFO("Defining routes...");
         CROW_ROUTE(app, "/health")
             .methods("GET"_method)
             ([](const crow::request& req) {
-                std::cout << (" Request: GET /health");
+                LOG_INFO("Request: GET /health");
                 auto response = HealthController::checkHealth();
-                std::cout << (" Response: " + std::to_string(response.code) + " GET /health");
+                LOG_INFO("Response: " + std::to_string(response.code) + " GET /health");
                 return response;
             });
 
         CROW_ROUTE(app, "/health/db")
             .methods("GET"_method)
             ([](const crow::request& req) {
-               std::cout << (" Request: GET /health/db");
+                LOG_INFO("Request: GET /health/db");
                 auto response = HealthController::checkDatabaseHealth();
-                std::cout << (" Response: " + std::to_string(response.code) + " GET /health/db");
+                LOG_INFO("Response: " + std::to_string(response.code) + " GET /health/db");
                 return response;
             });
 
         // Start the server
         const int port = config.getPort();
-        std::cout << "Starting server on port " << port << "..." << std::endl;
+        LOG_INFO("Starting server on port " + std::to_string(port) + "...");
 
         // Use a more basic approach to start the server
         app.port(port);
         app.multithreaded();
-        std::cout << "Server configured, about to run..." << std::endl;
+        LOG_INFO("Server configured, about to run...");
         app.run();
 
         // This line will never be reached while the server is running
-        std::cout << "Server stopped" << std::endl;
+        LOG_INFO("Server stopped");
     }
     catch (std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+        LOG_FATAL("Error: " + std::string(e.what()));
         return 1;
     }
 

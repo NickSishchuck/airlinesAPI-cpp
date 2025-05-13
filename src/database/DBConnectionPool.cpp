@@ -3,7 +3,6 @@
 #include <iostream>
 #include <sstream>
 
-// DBConnection implementation
 DBConnection::DBConnection(std::shared_ptr<sql::Connection> conn) : connection(conn), inUse(false) {}
 
 DBConnection::~DBConnection() {
@@ -16,7 +15,7 @@ DBConnection::~DBConnection() {
         // Just log the error, but don't throw from destructor
         std::stringstream ss;
         ss << "Error closing database connection: " << e.what();
-        Logger::error(ss.str());
+        LOG_ERROR(ss.str());
     }
 }
 
@@ -28,7 +27,7 @@ std::unique_ptr<sql::ResultSet> DBConnection::executeQuery(const std::string& qu
     catch (const sql::SQLException& e) {
         std::stringstream ss;
         ss << "SQL Error in executeQuery: " << e.what() << ". Query: " << query;
-        Logger::error(ss.str());
+        LOG_ERROR(ss.str());
         throw;
     }
 }
@@ -40,7 +39,7 @@ std::unique_ptr<sql::ResultSet> DBConnection::executeQuery(std::unique_ptr<sql::
     catch (const sql::SQLException& e) {
         std::stringstream ss;
         ss << "SQL Error in executeQuery with prepared statement: " << e.what();
-        Logger::error(ss.str());
+        LOG_ERROR(ss.str());
         throw;
     }
 }
@@ -53,7 +52,7 @@ int DBConnection::executeUpdate(const std::string& query) {
     catch (const sql::SQLException& e) {
         std::stringstream ss;
         ss << "SQL Error in executeUpdate: " << e.what() << ". Query: " << query;
-        Logger::error(ss.str());
+        LOG_ERROR(ss.str());
         throw;
     }
 }
@@ -65,7 +64,7 @@ int DBConnection::executeUpdate(std::unique_ptr<sql::PreparedStatement>& stmt) {
     catch (const sql::SQLException& e) {
         std::stringstream ss;
         ss << "SQL Error in executeUpdate with prepared statement: " << e.what();
-        Logger::error(ss.str());
+        LOG_ERROR(ss.str());
         throw;
     }
 }
@@ -77,7 +76,7 @@ std::unique_ptr<sql::PreparedStatement> DBConnection::prepareStatement(const std
     catch (const sql::SQLException& e) {
         std::stringstream ss;
         ss << "SQL Error in prepareStatement: " << e.what() << ". Query: " << query;
-        Logger::error(ss.str());
+        LOG_ERROR(ss.str());
         throw;
     }
 }
@@ -127,23 +126,23 @@ bool DBConnectionPool::initialize(
         }
 
         if (connections.empty()) {
-            Logger::error("Failed to create any database connections");
+            LOG_ERROR("Failed to create any database connections");
             return false;
         }
 
         initialized = true;
-        Logger::info("Database connection pool initialized with " +
+        LOG_INFO("Database connection pool initialized with " +
                      std::to_string(connections.size()) + " connections");
         return true;
     }
     catch (const sql::SQLException& e) {
         std::stringstream ss;
         ss << "SQL Error initializing connection pool: " << e.what();
-        Logger::error(ss.str());
+        LOG_ERROR(ss.str());
         return false;
     }
     catch (const std::exception& e) {
-        Logger::error("Error initializing connection pool: " + std::string(e.what()));
+        LOG_ERROR("Error initializing connection pool: " + std::string(e.what()));
         return false;
     }
 }
@@ -174,13 +173,13 @@ std::shared_ptr<DBConnection> DBConnectionPool::getConnection() {
         conn->inUse = true;
         connections.push_back(conn);
 
-        Logger::info("Created a new database connection. Pool size: " +
+        LOG_INFO("Created a new database connection. Pool size: " +
                      std::to_string(connections.size()));
 
         return conn;
     }
     catch (const std::exception& e) {
-        Logger::error("Error creating a new database connection: " + std::string(e.what()));
+        LOG_ERROR("Error creating a new database connection: " + std::string(e.what()));
         throw;
     }
 }
@@ -188,18 +187,18 @@ std::shared_ptr<DBConnection> DBConnectionPool::getConnection() {
 // Completely rewritten checkHealth method for src/database/DBConnectionPool.cpp
 bool DBConnectionPool::checkHealth() {
     std::shared_ptr<DBConnection> conn = nullptr;
-    
+
     try {
         // First, check if we're initialized
         if (!initialized) {
-            Logger::error("Database health check failed: Connection pool not initialized");
+            LOG_ERROR("Database health check failed: Connection pool not initialized");
             return false;
         }
-        
+
         // Step 1: Get a connection (with locking to ensure thread safety)
         {
             std::lock_guard<std::mutex> lock(mutex);
-            
+
             // Find an available connection or create a new one
             for (auto& c : connections) {
                 if (!c->inUse) {
@@ -208,7 +207,7 @@ bool DBConnectionPool::checkHealth() {
                     break;
                 }
             }
-            
+
             if (!conn) {
                 // Create a new connection if all are in use
                 auto newConn = createConnection();
@@ -219,77 +218,77 @@ bool DBConnectionPool::checkHealth() {
                 }
             }
         }
-        
+
         if (!conn) {
-            Logger::error("Database health check failed: Unable to get connection");
+            LOG_ERROR("Database health check failed: Unable to get connection");
             return false;
         }
-        
+
         // Step 2: Perform a simple test query
         try {
             std::cout << "Health check: Executing test query..." << std::endl;
-            
+
             // Create statement directly instead of using helper method
             std::unique_ptr<sql::Statement> stmt(conn->getConnection()->createStatement());
             if (!stmt) {
                 std::cout << "Health check: Failed to create statement" << std::endl;
                 throw std::runtime_error("Failed to create statement");
             }
-            
+
             // Execute query and get result set
             std::unique_ptr<sql::ResultSet> res(stmt->executeQuery("SELECT 1 AS test_value"));
             if (!res) {
                 std::cout << "Health check: Failed to get result set" << std::endl;
                 throw std::runtime_error("Failed to get result set");
             }
-            
+
             // Check the result immediately
             bool hasRow = res->next();
             if (!hasRow) {
                 std::cout << "Health check: Result set has no rows" << std::endl;
                 throw std::runtime_error("Result set has no rows");
             }
-            
+
             int value = res->getInt("test_value");
             std::cout << "Health check: Got value: " << value << std::endl;
-            
+
             // Close the result set explicitly
             res.reset();
-            
+
             // Close the statement explicitly
             stmt.reset();
-            
+
             // Mark connection as not in use
             {
                 std::lock_guard<std::mutex> lock(mutex);
                 conn->inUse = false;
             }
-            
+
             return (value == 1);
-            
+
         } catch (const sql::SQLException& e) {
             std::cout << "Health check: SQL exception: " << e.what() << std::endl;
-            Logger::error("Database health check SQL error: " + std::string(e.what()));
-            
+            LOG_ERROR("Database health check SQL error: " + std::string(e.what()));
+
             // Make sure to release the connection even if there's an error
             {
                 std::lock_guard<std::mutex> lock(mutex);
                 if (conn) conn->inUse = false;
             }
-            
+
             return false;
         }
     }
     catch (const std::exception& e) {
         std::cout << "Health check: General exception: " << e.what() << std::endl;
-        Logger::error("Database health check failed: " + std::string(e.what()));
-        
+        LOG_ERROR("Database health check failed: " + std::string(e.what()));
+
         // Make sure to release the connection even if there's an error
         if (conn) {
             std::lock_guard<std::mutex> lock(mutex);
             conn->inUse = false;
         }
-        
+
         return false;
     }
 }
@@ -319,7 +318,7 @@ std::shared_ptr<sql::Connection> DBConnectionPool::createConnection() {
     catch (const sql::SQLException& e) {
         std::stringstream ss;
         ss << "SQL Error creating database connection: " << e.what();
-        Logger::error(ss.str());
+        LOG_ERROR(ss.str());
         return nullptr;
     }
 }
@@ -333,5 +332,5 @@ void DBConnectionPool::cleanup() {
     connections.clear();
     initialized = false;
 
-    Logger::info("Database connection pool cleaned up");
+    LOG_INFO("Database connection pool cleaned up");
 }

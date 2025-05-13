@@ -1,3 +1,4 @@
+
 #include "../../include/config/Config.h"
 #include "../../include/utils/Logger.h"
 #include <fstream>
@@ -11,8 +12,7 @@ bool Config::load(const std::string& filename) {
         // Read the JSON configuration file
         std::ifstream file(filename);
         if (!file.is_open()) {
-            std::cerr << "Could not open configuration file: " << filename << std::endl;
-            Logger::error("Could not open configuration file: " + filename);
+            LOG_ERROR("Could not open configuration file: " + filename);
             return false;
         }
 
@@ -20,12 +20,12 @@ bool Config::load(const std::string& filename) {
         file.seekg(0, std::ios::end);
         size_t fileSize = file.tellg();
         file.seekg(0, std::ios::beg);
-        std::cerr << "Config file size: " << fileSize << " bytes" << std::endl;
+        LOG_DEBUG("Config file size: " + std::to_string(fileSize) + " bytes");
 
         // Read raw contents for debugging
         std::string rawContent((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-        std::cerr << "Raw config content: " << std::endl << rawContent << std::endl;
-        
+        LOG_DEBUG("Raw config content: \n" + rawContent);
+
         // Reset file position for parsing
         file.clear();
         file.seekg(0, std::ios::beg);
@@ -34,89 +34,87 @@ bool Config::load(const std::string& filename) {
         json config;
         try {
             file >> config;
-            std::cerr << "Successfully parsed JSON" << std::endl;
+            LOG_DEBUG("Successfully parsed JSON");
         } catch (const json::parse_error& e) {
-            std::cerr << "JSON parse error: " << e.what() << std::endl;
-            Logger::error("JSON parse error: " + std::string(e.what()));
+            LOG_ERROR("JSON parse error: " + std::string(e.what()));
             return false;
         }
 
         // Debug output the full config
-        std::cerr << "Parsed JSON: " << config.dump(2) << std::endl;
+        LOG_DEBUG("Parsed JSON: " + config.dump(2));
 
         // Load values from JSON
         if (config.contains("port")) {
             port = config["port"].get<int>();
-            std::cerr << "Loaded port: " << port << std::endl;
+            LOG_DEBUG("Loaded port: " + std::to_string(port));
         } else {
-            std::cerr << "Config does not contain 'port'" << std::endl;
+            LOG_WARNING("Config does not contain 'port'");
         }
 
         if (config.contains("database")) {
             auto& db = config["database"];
-            std::cerr << "Database section: " << db.dump(2) << std::endl;
-            
+            LOG_DEBUG("Database section: " + db.dump(2));
+
             if (db.contains("host")) {
                 dbHost = db["host"].get<std::string>();
-                std::cerr << "Loaded dbHost: " << dbHost << std::endl;
+                LOG_DEBUG("Loaded dbHost: " + dbHost);
             } else {
-                std::cerr << "Database does not contain 'host'" << std::endl;
+                LOG_WARNING("Database does not contain 'host'");
             }
-            
+
             if (db.contains("user")) {
                 dbUser = db["user"].get<std::string>();
-                std::cerr << "Loaded dbUser: " << dbUser << std::endl;
+                LOG_DEBUG("Loaded dbUser: " + dbUser);
             } else {
-                std::cerr << "Database does not contain 'user'" << std::endl;
+                LOG_WARNING("Database does not contain 'user'");
             }
-            
+
             if (db.contains("password")) {
                 dbPassword = db["password"].get<std::string>();
-                std::cerr << "Loaded dbPassword: " << dbPassword << std::endl;
+                LOG_DEBUG("Loaded dbPassword: " + dbPassword);
             } else {
-                std::cerr << "Database does not contain 'password'" << std::endl;
+                LOG_WARNING("Database does not contain 'password'");
             }
-            
+
             if (db.contains("name")) {
                 dbName = db["name"].get<std::string>();
-                std::cerr << "Loaded dbName: " << dbName << std::endl;
+                LOG_DEBUG("Loaded dbName: " + dbName);
             } else {
-                std::cerr << "Database does not contain 'name'" << std::endl;
+                LOG_WARNING("Database does not contain 'name'");
             }
-            
+
             if (db.contains("port")) {
                 dbPort = db["port"].get<int>();
-                std::cerr << "Loaded dbPort: " << dbPort << std::endl;
+                LOG_DEBUG("Loaded dbPort: " + std::to_string(dbPort));
             } else {
-                std::cerr << "Database does not contain 'port'" << std::endl;
+                LOG_WARNING("Database does not contain 'port'");
             }
-            
+
             if (db.contains("poolSize")) {
                 dbPoolSize = db["poolSize"].get<int>();
-                std::cerr << "Loaded dbPoolSize: " << dbPoolSize << std::endl;
+                LOG_DEBUG("Loaded dbPoolSize: " + std::to_string(dbPoolSize));
             } else {
-                std::cerr << "Database does not contain 'poolSize'" << std::endl;
+                LOG_WARNING("Database does not contain 'poolSize'");
             }
         } else {
-            std::cerr << "Config does not contain 'database' section" << std::endl;
+            LOG_WARNING("Config does not contain 'database' section");
         }
 
         // Print default values vs loaded values
-        std::cerr << "\nCurrent configuration after loading:" << std::endl;
-        std::cerr << "port: " << port << std::endl;
-        std::cerr << "dbHost: " << dbHost << std::endl;
-        std::cerr << "dbUser: " << dbUser << std::endl;
-        std::cerr << "dbPassword: " << dbPassword << std::endl;
-        std::cerr << "dbName: " << dbName << std::endl;
-        std::cerr << "dbPort: " << dbPort << std::endl;
-        std::cerr << "dbPoolSize: " << dbPoolSize << std::endl;
+        LOG_INFO("Current configuration after loading:");
+        LOG_INFO("port: " + std::to_string(port));
+        LOG_INFO("dbHost: " + dbHost);
+        LOG_INFO("dbUser: " + dbUser);
+        LOG_INFO("dbPassword: " + dbPassword);
+        LOG_INFO("dbName: " + dbName);
+        LOG_INFO("dbPort: " + std::to_string(dbPort));
+        LOG_INFO("dbPoolSize: " + std::to_string(dbPoolSize));
 
-        Logger::info("Configuration loaded successfully from " + filename);
+        LOG_INFO("Configuration loaded successfully from " + filename);
         return true;
     }
     catch (const std::exception& e) {
-        std::cerr << "Error loading configuration: " << e.what() << std::endl;
-        Logger::error("Error loading configuration: " + std::string(e.what()));
+        LOG_ERROR("Error loading configuration: " + std::string(e.what()));
         return false;
     }
 }

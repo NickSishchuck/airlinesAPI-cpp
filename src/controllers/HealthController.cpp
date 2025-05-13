@@ -10,13 +10,13 @@ crow::response HealthController::checkHealth() {
         // Basic health check
         json response;
         response["status"] = "ok";
-        response["timestamp"] = Logger::getCurrentTimestamp();
+        response["timestamp"] = GET_TIMESTAMP();
         response["service"] = "airline-api";
 
         return crow::response(200, response.dump(4));
     }
     catch (const std::exception& e) {
-        Logger::error("Error in health check: " + std::string(e.what()));
+        LOG_ERROR("Error in health check: " + std::string(e.what()));
 
         json error;
         error["status"] = "error";
@@ -33,14 +33,14 @@ crow::response HealthController::checkDatabaseHealth() {
 
         json response;
         response["status"] = dbHealthy ? "ok" : "error";
-        response["timestamp"] = Logger::getCurrentTimestamp();
+        response["timestamp"] = GET_TIMESTAMP();
         response["service"] = "airline-api";
         response["database"] = dbHealthy ? "connected" : "disconnected";
 
         return crow::response(dbHealthy ? 200 : 503, response.dump(4));
     }
     catch (const std::exception& e) {
-        Logger::error("Error in database health check: " + std::string(e.what()));
+       LOG_ERROR("Error in database health check: " + std::string(e.what()));
 
         json error;
         error["status"] = "error";
