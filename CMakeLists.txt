@@ -8,9 +8,6 @@ find_package(Threads REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(Boost REQUIRED)
 
-# Crow is installed system-wide via AUR
-# No need for custom include path, it should be in the system include directories
-
 # MariaDB Connector/C++ - Using direct path approach since find_package may not work
 set(MARIADB_CONNECTOR_INCLUDE_DIR "/usr/include/mariadb" "/usr/include/mariadb/conncpp")
 set(MARIADB_CONNECTOR_LIB "mariadbcpp")
