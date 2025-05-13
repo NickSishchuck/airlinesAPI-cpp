@@ -3,7 +3,6 @@
 #include <crow.h>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <memory>
 #include <nlohmann/json.hpp>
 #include "../utils/Logger.h"
@@ -13,9 +12,8 @@
 // Use nlohmann::json explicitly
 using json = nlohmann::json;
 
-// Authentication middleware for Crow routes
-class AuthMiddleware {
-public:
+// Authentication middleware for Crow
+struct AuthMiddleware {
     struct context {
         std::unordered_map<std::string, std::string> user;
         bool authenticated = false;
@@ -28,7 +26,7 @@ public:
             // Get token from Authorization header
             std::string authHeader = req.get_header_value("Authorization");
 
-            if (authHeader.substr(0, 7) == "Bearer ") {
+            if (!authHeader.empty() && authHeader.substr(0, 7) == "Bearer ") {
                 std::string token = authHeader.substr(7);
 
                 // Verify token
@@ -55,28 +53,11 @@ public:
 
                         if (!result->next()) {
                             ctx.authenticated = false;
-
-                            res.code = 401;
-                            res.body = json({
-                                {"success", false},
-                                {"error", "User no longer exists"}
-                            }).dump(4);
-                            res.end();
-                            return;
                         }
                     } catch (const std::exception& e) {
                         LOG_ERROR("Database error in auth middleware: " + std::string(e.what()));
                         // Continue with the authentication we have
                     }
-                } else {
-                    // Invalid token
-                    res.code = 401;
-                    res.body = json({
-                        {"success", false},
-                        {"error", "Invalid token"}
-                    }).dump(4);
-                    res.end();
-                    return;
                 }
             }
         } catch (const std::exception& e) {
@@ -90,44 +71,78 @@ public:
     }
 };
 
+// Since we can't directly access the middleware context, let's create a lightweight auth system
+// that doesn't depend on the middleware context, but rather processes the request directly
+
 /**
- * Helper function to extract the auth context from the request's middleware
+ * Helper function to check if a request is authenticated
  */
-inline AuthMiddleware::context& get_auth_context(const crow::request& req) {
-    return *reinterpret_cast<AuthMiddleware::context*>(req.middleware_context["AuthMiddleware"]);
+inline bool is_authenticated(const crow::request& req) {
+    std::string authHeader = req.get_header_value("Authorization");
+
+    if (authHeader.empty() || authHeader.substr(0, 7) != "Bearer ") {
+        return false;
+    }
+
+    std::string token = authHeader.substr(7);
+    std::unordered_map<std::string, std::string> payload;
+
+    return JWTUtils::getInstance().verifyToken(token, payload);
 }
 
 /**
- * Helper function to check if a user is authenticated
+ * Helper function to extract user data from a request
  */
-inline bool is_authenticated(const crow::request& req) {
-    auto& ctx = get_auth_context(req);
-    return ctx.authenticated;
+inline std::unordered_map<std::string, std::string> get_user_data(const crow::request& req) {
+    std::unordered_map<std::string, std::string> payload;
+    std::string authHeader = req.get_header_value("Authorization");
+
+    if (!authHeader.empty() && authHeader.substr(0, 7) == "Bearer ") {
+        std::string token = authHeader.substr(7);
+        JWTUtils::getInstance().verifyToken(token, payload);
+    }
+
+    return payload;
 }
 
 /**
  * Helper function to check if a user has the required role
  */
 inline bool has_role(const crow::request& req, const std::vector<std::string>& roles) {
-    auto& ctx = get_auth_context(req);
+    auto userData = get_user_data(req);
 
-    // If no roles specified, any authenticated user is allowed
-    if (!ctx.authenticated) {
+    // If not authenticated or no role info
+    if (userData.empty() || userData.find("role") == userData.end()) {
         return false;
     }
 
+    // If no roles specified, any authenticated user is allowed
     if (roles.empty()) {
         return true;
     }
 
     // Check if user has any of the required roles
+    std::string userRole = userData["role"];
     for (const auto& role : roles) {
-        if (ctx.role == role) {
+        if (userRole == role) {
             return true;
         }
     }
 
     return false;
+}
+
+/**
+ * Helper function to get user ID from request
+ */
+inline int get_user_id(const crow::request& req) {
+    auto userData = get_user_data(req);
+
+    if (userData.empty() || userData.find("id") == userData.end()) {
+        return 0;
+    }
+
+    return std::stoi(userData["id"]);
 }
 
 /**

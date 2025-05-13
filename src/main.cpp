@@ -99,7 +99,7 @@ int main() {
             });
 
         // Auth routes
-        // Register with email
+
         CROW_ROUTE(app, "/api/auth/register")
             .methods("POST"_method)
             ([](const crow::request& req) {
@@ -109,7 +109,6 @@ int main() {
                 return response;
             });
 
-        // Register with phone
         CROW_ROUTE(app, "/api/auth/register/phone")
             .methods("POST"_method)
             ([](const crow::request& req) {
@@ -119,7 +118,6 @@ int main() {
                 return response;
             });
 
-        // Login with email
         CROW_ROUTE(app, "/api/auth/login")
             .methods("POST"_method)
             ([](const crow::request& req) {

@@ -107,7 +107,11 @@ crow::response AuthController::registerEmail(const crow::request& req) {
         insertStmt->setString(4, role);
 
         db->executeUpdate(insertStmt);
-        int userId = insertStmt->getLastInsertId();
+        // Get the last insert ID
+        auto idStmt = db->prepareStatement("SELECT LAST_INSERT_ID()");
+        auto idResult = db->executeQuery(idStmt);
+        idResult->next();
+        int userId = idResult->getInt(1);
 
         // Get created user
         auto userStmt = db->prepareStatement(
@@ -206,7 +210,11 @@ crow::response AuthController::registerPhone(const crow::request& req) {
         insertStmt->setString(4, role);
 
         db->executeUpdate(insertStmt);
-        int userId = insertStmt->getLastInsertId();
+        // Get the last insert ID
+        auto idStmt = db->prepareStatement("SELECT LAST_INSERT_ID()");
+        auto idResult = db->executeQuery(idStmt);
+        idResult->next();
+        int userId = idResult->getInt(1);
 
         // Get created user
         auto userStmt = db->prepareStatement(
@@ -298,7 +306,7 @@ crow::response AuthController::login(const crow::request& req) {
 
         // Get user data
         int userId = result->getInt("user_id");
-        std::string role = result->getString("role");
+        std::string role = static_cast<std::string>(result->getString("role"));
 
         // Create user data JSON
         json userData;
@@ -385,7 +393,7 @@ crow::response AuthController::loginPhone(const crow::request& req) {
 
         // Get user data
         int userId = result->getInt("user_id");
-        std::string role = result->getString("role");
+        std::string role = result->getString("role").c_str();
 
         // Create user data JSON
         json userData;
@@ -439,8 +447,7 @@ crow::response AuthController::loginPhone(const crow::request& req) {
 crow::response AuthController::getMe(const crow::request& req) {
     try {
         // Extract user ID from the authenticated user context
-        auto& ctx = req.get_context<AuthMiddleware>();
-        int userId = ctx.user_id;
+        int userId = get_user_id(req);
 
         // Get database connection to fetch latest user data
         auto db = DBConnectionPool::getInstance().getConnection();
@@ -518,6 +525,7 @@ crow::response AuthController::getMe(const crow::request& req) {
 
 crow::response AuthController::updatePassword(const crow::request& req) {
     try {
+
         // Parse request body
         json requestData = json::parse(req.body);
 
@@ -532,9 +540,7 @@ crow::response AuthController::updatePassword(const crow::request& req) {
         std::string currentPassword = requestData["currentPassword"];
         std::string newPassword = requestData["newPassword"];
 
-        // Extract user ID from the authenticated user context
-        auto& ctx = req.get_context<AuthMiddleware>();
-        int userId = ctx.user_id;
+        int userId = get_user_id(req);
 
         // Get database connection
         auto db = DBConnectionPool::getInstance().getConnection();
@@ -563,7 +569,7 @@ crow::response AuthController::updatePassword(const crow::request& req) {
         db->executeUpdate(updateStmt);
 
         // Generate new token
-        std::string role = result->getString("role");
+        std::string role = result->getString("role").c_str();
         std::string token = JWTUtils::getInstance().generateToken(userId, role);
 
         // Create response

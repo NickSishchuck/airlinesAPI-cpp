@@ -2,115 +2,32 @@
 
 #include <crow.h>
 #include <string>
-#include <unordered_map>
 #include <vector>
 #include <memory>
 #include <nlohmann/json.hpp>
 #include "../utils/Logger.h"
 #include "../utils/JWTUtils.h"
 #include "../database/DBConnectionPool.h"
+#include "../middleware/AuthMiddleware.h"
 
 // Use nlohmann::json explicitly
 using json = nlohmann::json;
 
-// Authentication middleware for Crow
-struct AuthMiddleware {
-    struct context {
-        std::unordered_map<std::string, std::string> user;
-        bool authenticated = false;
-        std::string role;
-        int user_id = 0;
-    };
+class AuthController {
+public:
+    // Password hashing and verification
+    static std::string hashPassword(const std::string& password);
+    static bool verifyPassword(const std::string& providedPassword, const std::string& storedHash);
 
-    void before_handle(crow::request& req, crow::response& res, context& ctx) {
-        try {
-            // Get token from Authorization header
-            std::string authHeader = req.get_header_value("Authorization");
+    // Helper for creating token responses
+    static crow::response createTokenResponse(int userId, const std::string& role, const nlohmann::json& userData);
 
-            if (!authHeader.empty() && authHeader.substr(0, 7) == "Bearer ") {
-                std::string token = authHeader.substr(7);
-
-                // Verify token
-                std::unordered_map<std::string, std::string> payload;
-                if (JWTUtils::getInstance().verifyToken(token, payload)) {
-                    ctx.user = payload;
-                    ctx.authenticated = true;
-
-                    // Store role and user_id for easier access
-                    if (payload.count("role")) {
-                        ctx.role = payload["role"];
-                    }
-
-                    if (payload.count("id")) {
-                        ctx.user_id = std::stoi(payload["id"]);
-                    }
-
-                    // Check if user still exists in the database
-                    try {
-                        auto db = DBConnectionPool::getInstance().getConnection();
-                        auto stmt = db->prepareStatement("SELECT * FROM users WHERE user_id = ?");
-                        stmt->setInt(1, ctx.user_id);
-                        auto result = db->executeQuery(stmt);
-
-                        if (!result->next()) {
-                            ctx.authenticated = false;
-                        }
-                    } catch (const std::exception& e) {
-                        LOG_ERROR("Database error in auth middleware: " + std::string(e.what()));
-                        // Continue with the authentication we have
-                    }
-                }
-            }
-        } catch (const std::exception& e) {
-            LOG_ERROR("Auth middleware error: " + std::string(e.what()));
-            // Continue processing
-        }
-    }
-
-    void after_handle(crow::request& req, crow::response& res, context& ctx) {
-        // Nothing to do after handling
-    }
+    // Auth endpoints
+    static crow::response registerEmail(const crow::request& req);
+    static crow::response registerPhone(const crow::request& req);
+    static crow::response login(const crow::request& req);
+    static crow::response loginPhone(const crow::request& req);
+    static crow::response getMe(const crow::request& req);
+    static crow::response updatePassword(const crow::request& req);
+    static crow::response logout(const crow::request& req);
 };
-
-/**
- * Helper function to check if a user is authenticated
- */
-inline bool is_authenticated(const crow::request& req) {
-    return req.get_context<AuthMiddleware>().authenticated;
-}
-
-/**
- * Helper function to check if a user has the required role
- */
-inline bool has_role(const crow::request& req, const std::vector<std::string>& roles) {
-    auto& ctx = req.get_context<AuthMiddleware>();
-
-    // Check if user is authenticated
-    if (!ctx.authenticated) {
-        return false;
-    }
-
-    // If no roles specified, any authenticated user is allowed
-    if (roles.empty()) {
-        return true;
-    }
-
-    // Check if user has any of the required roles
-    for (const auto& role : roles) {
-        if (ctx.role == role) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-/**
- * Helper function to create an error response
- */
-inline crow::response auth_error(int status, const std::string& message) {
-    nlohmann::json error;
-    error["success"] = false;
-    error["error"] = message;
-    return crow::response(status, error.dump(4));
-}
