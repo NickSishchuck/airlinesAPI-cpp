@@ -1,1 +1,1 @@
-[JavaScript version](github.com/NickSishchuck/airlinesAPI)
+[JavaScript version](https://github.com/NickSishchuck/airlinesAPI)
