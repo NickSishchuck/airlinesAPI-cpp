@@ -10,6 +10,7 @@
 #include "../include/controllers/AircraftController.h"
 #include "../include/controllers/CrewMemberController.h"
 #include "../include/controllers/CrewController.h"
+#include "../include/controllers/FlightController.h"
 #include "../include/utils/Logger.h"
 
 int main() {
@@ -537,6 +538,37 @@ int main() {
                     LOG_INFO("Response: " + std::to_string(response.code) + " GET /api/crews/" + std::to_string(id) + "/aircraft");
                     return response;
                 });
+                CROW_ROUTE(app, "/api/flights")
+                    .methods("GET"_method)
+                    ([](const crow::request& req) {
+                        LOG_INFO("Request: GET /api/flights");
+                        auto response = FlightController::getFlights(req);
+                        LOG_INFO("Response: " + std::to_string(response.code) + " GET /api/flights");
+                        return response;
+                    });
+
+                CROW_ROUTE(app, "/api/flights")
+                    .methods("POST"_method)
+                    ([](const crow::request& req) {
+                        LOG_INFO("Request: POST /api/flights");
+
+                        if (!has_role(req, {"admin", "worker"})) {
+                            return auth_error(403, "Not authorized to create flights");
+                        }
+
+                        auto response = FlightController::createFlight(req);
+                        LOG_INFO("Response: " + std::to_string(response.code) + " POST /api/flights");
+                        return response;
+                    });
+
+                CROW_ROUTE(app, "/api/flights/<int>")
+                    .methods("GET"_method)
+                    ([](const crow::request& req, int id) {
+                        LOG_INFO("Request: GET /api/flights/" + std::to_string(id));
+                        auto response = FlightController::getFlight(req);
+                        LOG_INFO("Response: " + std::to_string(response.code) + " GET /api/flights/" + std::to_string(id));
+                        return response;
+                    });
 
 
         // Start the server
